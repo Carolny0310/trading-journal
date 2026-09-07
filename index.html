@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Trading Journal Online</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+    :root{
+      --bg:#0f172a;--card:#111827;--muted:#94a3b8;--text:#f8fafc;--line:#263244;
+      --green:#22c55e;--red:#ef4444;--blue:#3b82f6;--yellow:#f59e0b;--soft:#1e293b;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+    .wrap{max-width:1200px;margin:auto;padding:20px}
+    h1,h2,h3{margin-top:0}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+    .tab{background:var(--soft);border:1px solid var(--line);color:var(--text);padding:10px 14px;border-radius:10px;cursor:pointer}
+    .tab.active{background:var(--blue)}
+    .panel{display:none}.panel.active{display:block}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+    .label{color:var(--muted);font-size:13px}
+    .value{font-size:26px;font-weight:700;margin-top:4px}
+    .pos{color:var(--green)} .neg{color:var(--red)}
+    input,select,textarea,button{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:#0b1220;color:var(--text)}
+    textarea{min-height:110px;resize:vertical}
+    button{cursor:pointer;background:var(--blue);font-weight:700}
+    button.secondary{background:var(--soft)}
+    button.danger{background:var(--red)}
+    .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+    table{width:100%;border-collapse:collapse;font-size:14px}
+    th,td{padding:9px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+    th{color:#cbd5e1}
+    .scroll{overflow-x:auto}
+    .progress{height:10px;background:#0b1220;border-radius:999px;overflow:hidden;border:1px solid var(--line)}
+    .bar{height:100%;background:var(--green);width:0%}
+    .goal-row{margin-bottom:16px}
+    .row-between{display:flex;justify-content:space-between;gap:10px;align-items:center}
+    .tiny{font-size:12px;color:var(--muted)}
+    .note{color:var(--muted);font-size:13px}
+    .section-gap{margin-top:18px}
+    @media(max-width:600px){.wrap{padding:12px}.value{font-size:22px}}
+  
+.hidden{display:none!important}
+.auth-card{max-width:760px;margin:8vh auto;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:24px}
+.auth-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.password-wrap{display:flex;gap:8px}.password-wrap input{flex:1}.password-wrap .eye{width:auto;min-width:90px}
+.auth-buttons{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.userbar{margin-bottom:12px}
+@media(max-width:600px){.auth-grid,.auth-buttons{grid-template-columns:1fr}}
+</style></head><body>
+
+<div id="authBox" class="auth-card">
+  <h1>Trading Journal</h1>
+  <p class="note">Entre com sua conta. Seus dados ficam sincronizados e separados dos outros usuários.</p>
+  <div class="auth-grid">
+    <div><div class="label">E-mail</div><input id="email" type="email" autocomplete="email"></div>
+    <div><div class="label">Senha</div>
+      <div class="password-wrap"><input id="password" type="password" minlength="6"><button type="button" id="togglePasswordBtn" class="secondary eye">👁 Ver</button></div>
+    </div>
+  </div>
+  <div class="auth-buttons"><button id="loginBtn">Entrar</button><button id="signupBtn" class="secondary">Criar conta</button></div>
+  <p id="authMsg" class="note"></p>
+</div>
+
+
+<div id="app" class="wrap hidden">
+<div class="row-between userbar"><div class="tiny" id="userEmail"></div><button id="logoutBtn" class="secondary" style="width:auto">Sair</button></div>
+  <h1>Trading Journal</h1>
+  <div class="tabs">
+    <button class="tab active" data-tab="dashboard">Dashboard</button>
+    <button class="tab" data-tab="trades">Trades</button>
+    <button class="tab" data-tab="goals">Metas</button>
+    <button class="tab" data-tab="reflection">反省 / Reflexão</button>
+    <button class="tab" data-tab="settings">Configurações</button>
+  </div>
+
+  <section id="dashboard" class="panel active">
+    <div class="grid">
+      <div class="card"><div class="label">Saldo inicial</div><div class="value" id="dInitial">0</div></div>
+      <div class="card"><div class="label">Saldo atual</div><div class="value" id="dBalance">0</div></div>
+      <div class="card"><div class="label">Lucro / Prejuízo</div><div class="value" id="dPnL">0</div></div>
+      <div class="card"><div class="label">Retorno total</div><div class="value" id="dReturn">0%</div></div>
+      <div class="card"><div class="label">Porcentagem de acertos</div><div class="value pos" id="dWinrate">0%</div></div>
+      <div class="card"><div class="label">Porcentagem de erros</div><div class="value neg" id="dErrorrate">0%</div></div>
+      <div class="card"><div class="label">Total de entradas</div><div class="value" id="dTrades">0</div></div>
+      <div class="card"><div class="label">Entradas certas</div><div class="value pos" id="dWins">0</div></div>
+      <div class="card"><div class="label">Entradas negativas</div><div class="value neg" id="dLosses">0</div></div>
+      <div class="card"><div class="label">Maior sequência de wins</div><div class="value" id="dWinStreak">0</div></div>
+      <div class="card"><div class="label">Maior sequência de losses</div><div class="value" id="dLossStreak">0</div></div>
+      <div class="card"><div class="label">Drawdown máximo</div><div class="value neg" id="dDD">0%</div></div>
+      <div class="card"><div class="label">Profit Factor</div><div class="value" id="dPF">0.00</div></div>
+    </div>
+
+    <div class="card section-gap">
+      <h3>Resumo do dia</h3>
+      <div class="form-grid">
+        <div><div class="label">Data</div><input type="date" id="summaryDate"></div>
+        <div><div class="label">Resultado do dia</div><div class="value" id="dayPnL">0</div></div>
+        <div><div class="label">Taxa de acerto do dia</div><div class="value" id="dayWinrate">0%</div></div>
+        <div><div class="label">Trades do dia</div><div class="value" id="dayTrades">0</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="trades" class="panel">
+    <div class="card">
+      <h2>Novo trade</h2>
+      <div class="form-grid">
+        <div><div class="label">Data</div><input type="date" id="tDate"></div>
+        <div><div class="label">Ativo</div><input id="tAsset" placeholder="Ex: XAUUSD"></div>
+        <div><div class="label">Entradas</div><input type="number" min="0" step="1" id="tEntries" placeholder="Ex: 10"></div>
+        <div><div class="label">Negativas</div><input type="number" min="0" step="1" id="tNegatives" placeholder="Ex: 3"></div>
+        <div><div class="label">Resultado</div><input type="number" step="any" id="tResult" placeholder="+500 / -300"></div>
+      </div>
+      <div class="section-gap"><div class="label">Setup / Observação</div><input id="tNote" placeholder="Ex: rompimento, entrada atrasada..."></div>
+      <div class="section-gap"><button id="addTradeBtn">Adicionar trade</button></div>
+    </div>
+
+    <div class="card section-gap">
+      <div class="row-between"><h2>Histórico</h2></div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Data</th><th>Ativo</th><th>Entradas</th><th>Negativas</th><th>Acertos</th><th>% Acerto</th><th>% Erro</th><th>Resultado</th><th>% do saldo</th><th>Saldo antes</th><th>Saldo depois</th><th>Observação</th><th></th></tr></thead>
+          <tbody id="tradeRows"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="goals" class="panel">
+    <div class="card">
+      <h2>Metas</h2>
+      <p class="note">As metas usam o saldo inicial como base e mostram quanto do objetivo já foi alcançado.</p>
+      <div id="goalList"></div>
+    </div>
+  </section>
+
+  <section id="reflection" class="panel">
+    <div class="card">
+      <h2>反省 / Reflexão diária</h2>
+      <div class="form-grid">
+        <div><div class="label">Data</div><input type="date" id="rDate"></div>
+        <div><div class="label">Segui meu plano?</div><select id="rPlan"><option>SIM</option><option>PARCIAL</option><option>NÃO</option></select></div>
+        <div><div class="label">Nota do dia</div><select id="rScore"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option></select></div>
+      </div>
+      <div class="section-gap"><div class="label">O que fiz bem?</div><textarea id="rGood"></textarea></div>
+      <div class="section-gap"><div class="label">O que errei?</div><textarea id="rBad"></textarea></div>
+      <div class="section-gap"><div class="label">O que vou melhorar amanhã?</div><textarea id="rImprove"></textarea></div>
+      <div class="section-gap"><button id="saveReflectionBtn">Salvar reflexão</button></div>
+    </div>
+
+    <div class="card section-gap">
+      <h2>Histórico de reflexões</h2>
+      <div id="reflectionList"></div>
+    </div>
+  </section>
+
+  <section id="settings" class="panel">
+    <div class="card">
+      <h2>Configurações</h2>
+      <div class="form-grid">
+        <div><div class="label">Saldo inicial</div><input type="number" step="any" id="sInitial"></div>
+        <div><div class="label">Moeda</div><input id="sCurrency" placeholder="JPY / USD / BRL"></div>
+      </div>
+      <h3 class="section-gap">Metas em %</h3>
+      <div class="form-grid">
+        <div><div class="label">Diária</div><input type="number" step="0.1" id="gDay"></div>
+        <div><div class="label">Semanal</div><input type="number" step="0.1" id="gWeek"></div>
+        <div><div class="label">Mensal</div><input type="number" step="0.1" id="gMonth"></div>
+        <div><div class="label">3 meses</div><input type="number" step="0.1" id="g3m"></div>
+        <div><div class="label">6 meses</div><input type="number" step="0.1" id="g6m"></div>
+        <div><div class="label">1 ano</div><input type="number" step="0.1" id="g1y"></div>
+      </div>
+      <div class="section-gap"><button id="saveSettings">Salvar configurações</button></div>
+      <p class="tiny">Os dados ficam salvos no próprio navegador deste aparelho usando localStorage.</p>
+    </div>
+  </section>
+</div>
+
+
+<script>
+const SUPABASE_URL = "https://gwaeoxirhztzfbgvwklv.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_e6xyzZX55DwCZNEKaHOsQA_owJpgkKE";
+const client = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+let currentUser=null, trades=[], reflections=[];
+let settings={title:"Trading Journal",initial_balance:10000,goal_day:2,goal_week:5,goal_month:10,goal_3m:20,goal_6m:35,goal_1y:70};
+const $=id=>document.getElementById(id);
+const today=()=>new Date().toISOString().slice(0,10);
+$("tDate").value=today(); $("rDate").value=today(); $("summaryDate").value=today();
+
+function money(v){return `US$ ${Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})}`}
+function pct(v){return `${Number(v||0).toFixed(2)}%`}
+function msg(t,e=false){$("authMsg").textContent=t;$("authMsg").style.color=e?"#fca5a5":"#94a3b8"}
+
+$("togglePasswordBtn").onclick=()=>{const p=$("password");const show=p.type==="password";p.type=show?"text":"password";$("togglePasswordBtn").textContent=show?"🙈 Ocultar":"👁 Ver";};
+$("signupBtn").onclick=async()=>{const email=$("email").value.trim(),password=$("password").value;if(!email||password.length<6){msg("Digite um e-mail e uma senha com pelo menos 6 caracteres.",true);return}msg("Criando conta...");const {error}=await client.auth.signUp({email,password});if(error)msg(error.message,true);else msg("Conta criada com sucesso!");};
+$("loginBtn").onclick=async()=>{msg("Entrando...");const {error}=await client.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});if(error)msg(error.message,true);};
+$("logoutBtn").onclick=()=>client.auth.signOut();
+
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));b.classList.add("active");$(b.dataset.tab).classList.add("active");});
+
+client.auth.onAuthStateChange(async(_e,session)=>{currentUser=session?.user||null;$("authBox").classList.toggle("hidden",!!currentUser);$("app").classList.toggle("hidden",!currentUser);if(currentUser){$("userEmail").textContent=currentUser.email;await loadAll();}});
+
+async function loadAll(){
+ const [t,r,s]=await Promise.all([client.from("trades").select("*").order("trade_date",{ascending:true}),client.from("reflections").select("*").order("reflection_date",{ascending:false}),client.from("settings").select("*").maybeSingle()]);
+ if(t.error)alert(t.error.message);if(r.error)alert(r.error.message);trades=t.data||[];reflections=r.data||[];
+ if(s.data)settings=s.data;else{const row={user_id:currentUser.id,title:"Trading Journal",initial_balance:10000,goal_day:2,goal_week:5,goal_month:10,goal_3m:20,goal_6m:35,goal_1y:70};const q=await client.from("settings").insert(row).select().single();if(q.error)alert(q.error.message);else settings=q.data;}
+ render();
+}
+
+function calc(){
+ let balance=Number(settings.initial_balance||10000),peak=balance,maxDD=0,grossWin=0,grossLoss=0,total=0,neg=0,ws=0,ls=0,mws=0,mls=0;
+ const computed=trades.map(t=>{const before=balance,r=Number(t.result||0),e=Number(t.entries||0),n=Number(t.negatives||0),ok=Math.max(0,e-n);total+=e;neg+=n;balance+=r;if(r>0){grossWin+=r;ws++;ls=0;mws=Math.max(mws,ws)}else if(r<0){grossLoss+=Math.abs(r);ls++;ws=0;mls=Math.max(mls,ls)}peak=Math.max(peak,balance);maxDD=Math.max(maxDD,peak?((peak-balance)/peak*100):0);return{...t,before,after:balance,e,n,ok,hit:e?ok/e*100:0,err:e?n/e*100:0,ret:before?r/before*100:0}});
+ const correct=Math.max(0,total-neg),pnl=balance-Number(settings.initial_balance||0);
+ return{computed,balance,pnl,totalReturn:settings.initial_balance?pnl/settings.initial_balance*100:0,total,neg,correct,hit:total?correct/total*100:0,err:total?neg/total*100:0,maxDD,pf:grossLoss?grossWin/grossLoss:(grossWin?Infinity:0),mws,mls};
+}
+function render(){
+ const c=calc();$("dInitial").textContent=money(settings.initial_balance);$("dBalance").textContent=money(c.balance);$("dPnL").textContent=money(c.pnl);$("dPnL").className="value "+(c.pnl>=0?"pos":"neg");$("dReturn").textContent=pct(c.totalReturn);$("dWinrate").textContent=pct(c.hit);$("dErrorrate").textContent=pct(c.err);$("dTrades").textContent=c.total;$("dWins").textContent=c.correct;$("dLosses").textContent=c.neg;$("dWinStreak").textContent=c.mws;$("dLossStreak").textContent=c.mls;$("dDD").textContent=pct(c.maxDD);$("dPF").textContent=c.pf===Infinity?"∞":c.pf.toFixed(2);
+ $("tradeRows").innerHTML=c.computed.map(t=>`<tr><td>${t.trade_date}</td><td>${t.asset||""}</td><td>${t.e}</td><td>${t.n}</td><td>${t.ok}</td><td>${pct(t.hit)}</td><td>${pct(t.err)}</td><td class="${Number(t.result)>=0?"pos":"neg"}">${money(t.result)}</td><td>${pct(t.ret)}</td><td>${money(t.before)}</td><td>${money(t.after)}</td><td>${t.note||""}</td><td><button class="danger" onclick="deleteTrade('${t.id}')">X</button></td></tr>`).join("");
+ const goals=[["Dia",settings.goal_day],["Semana",settings.goal_week],["Mês",settings.goal_month],["3 meses",settings.goal_3m],["6 meses",settings.goal_6m],["1 ano",settings.goal_1y]];
+ $("goalList").innerHTML=goals.map(([n,g])=>{const target=Number(settings.initial_balance)*(1+Number(g)/100),pr=(c.balance-Number(settings.initial_balance))/(target-Number(settings.initial_balance))*100,w=Math.max(0,Math.min(100,pr||0));return `<div class="goal-row"><div class="row-between"><b>${n} — ${pct(g)}</b><span>Meta: ${money(target)}</span></div><div class="progress"><div class="bar" style="width:${w}%"></div></div><div class="tiny">Progresso: ${pct(pr||0)}</div></div>`}).join("");
+ $("reflectionRows").innerHTML=reflections.map(r=>`<tr><td>${r.reflection_date}</td><td>${r.plan}</td><td>${r.score}</td><td>${r.good||""}</td><td>${r.bad||""}</td><td>${r.improve||""}</td><td><button class="danger" onclick="deleteReflection('${r.id}')">X</button></td></tr>`).join("");
+ $("sInitial").value=settings.initial_balance;$("sCurrency").value="USD";$("gDay").value=settings.goal_day;$("gWeek").value=settings.goal_week;$("gMonth").value=settings.goal_month;$("g3m").value=settings.goal_3m;$("g6m").value=settings.goal_6m;$("g1y").value=settings.goal_1y;renderDay();
+}
+function renderDay(){const d=$("summaryDate").value,rows=trades.filter(t=>t.trade_date===d);let pnl=0,e=0,n=0;rows.forEach(t=>{pnl+=Number(t.result||0);e+=Number(t.entries||0);n+=Number(t.negatives||0)});const ok=Math.max(0,e-n);$("dayPnL").textContent=money(pnl);$("dayPnL").className="value "+(pnl>=0?"pos":"neg");$("dayWinrate").textContent=pct(e?ok/e*100:0);$("dayTrades").textContent=e;}
+$("summaryDate").onchange=renderDay;
+
+$("addTradeBtn").onclick=async()=>{const e=Number($("tEntries").value),n=Number($("tNegatives").value);if(!$("tDate").value||$("tResult").value===""||n>e){alert("Confira data, entradas, negativas e resultado.");return}const q=await client.from("trades").insert({user_id:currentUser.id,trade_date:$("tDate").value,asset:$("tAsset").value,entries:e,negatives:n,result:Number($("tResult").value),note:$("tNote").value});if(q.error)alert(q.error.message);else{$("tEntries").value=$("tNegatives").value=$("tResult").value=$("tNote").value="";await loadAll();}};
+window.deleteTrade=async id=>{if(confirm("Excluir este trade?")){const q=await client.from("trades").delete().eq("id",id);if(q.error)alert(q.error.message);else await loadAll();}};
+
+$("saveReflectionBtn").onclick=async()=>{const q=await client.from("reflections").insert({user_id:currentUser.id,reflection_date:$("rDate").value,score:Number($("rScore").value),plan:$("rPlan").value,good:$("rGood").value,bad:$("rBad").value,improve:$("rImprove").value});if(q.error)alert(q.error.message);else{$("rGood").value=$("rBad").value=$("rImprove").value="";await loadAll();}};
+window.deleteReflection=async id=>{if(confirm("Excluir esta reflexão?")){const q=await client.from("reflections").delete().eq("id",id);if(q.error)alert(q.error.message);else await loadAll();}};
+
+$("saveSettings").onclick=async()=>{const payload={initial_balance:Number($("sInitial").value||10000),goal_day:Number($("gDay").value||0),goal_week:Number($("gWeek").value||0),goal_month:Number($("gMonth").value||0),goal_3m:Number($("g3m").value||0),goal_6m:Number($("g6m").value||0),goal_1y:Number($("g1y").value||0)};const q=await client.from("settings").update(payload).eq("user_id",currentUser.id);if(q.error)alert(q.error.message);else await loadAll();};
+
+(async()=>{const {data:{session}}=await client.auth.getSession();currentUser=session?.user||null;$("authBox").classList.toggle("hidden",!!currentUser);$("app").classList.toggle("hidden",!currentUser);if(currentUser){$("userEmail").textContent=currentUser.email;await loadAll();}})();
+</script></body></html>
